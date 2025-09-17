@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Leaflet → Image</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-sA+g6m0b8v1KpK2u9kq2Gv1b8V1q8Zf+q0+X1jvP0+I=" crossorigin=""/>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; margin: 10px; }
+    #map { width: 800px; height: 500px; border: 1px solid #ccc; }
+    img#mapimage { max-width: 100%; margin-top: 10px; border:1px solid #888; }
+    .controls { margin: 8px 0; }
+    input { padding:6px; width:150px; margin-right:6px; }
+    button { padding:6px 10px; }
+  </style>
+</head>
+<body>
+  <h3>Gerar imagem do mapa (Leaflet → PNG)</h3>
+
+  <div class="controls">
+    <!-- valores padrão (exemplo) -->
+    <input id="lat1" placeholder="lat1" value="-3.722" />
+    <input id="lng1" placeholder="lng1" value="-38.543" />
+    <input id="lat2" placeholder="lat2" value="-3.735" />
+    <input id="lng2" placeholder="lng2" value="-38.540" />
+    <button id="draw">Desenhar & Gerar Imagem</button>
+  </div>
+
+  <!-- mapa renderizado pelo Leaflet -->
+  <div id="map"></div>
+
+  <!-- aqui aparecerá a imagem gerada -->
+  <div>
+    <p>Imagem gerada (base64 PNG):</p>
+    <img id="mapimage" alt="Mapa convertido para imagem" />
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-m6Q5XfPjQqA3m3w8qY3k+Gf9b1Q2s8gUu6g6x9u2hNc=" crossorigin=""></script>
+
+  <!-- leaflet-image (plugin para exportar o mapa para canvas) -->
+  <script src="https://rawcdn.githack.com/mapbox/leaflet-image/gh-pages/leaflet-image.js"></script>
+
+  <script>
+    // Função utilitária para pegar parâmetros da URL (caso queira usar query string)
+    function getParam(name, fallback) {
+      const url = new URL(window.location.href);
+      return url.searchParams.get(name) ?? fallback;
+    }
+
+    // Inicializa mapa (será atualizado quando o botão for clicado)
+    let map = L.map('map', { attributionControl: false }).setView([0,0], 2);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19
+    }).addTo(map);
+    let markerGroup = L.featureGroup().addTo(map);
+
+    // Carregar coordenadas iniciais da query string se existir
+    document.getElementById('lat1').value = getParam('lat1', document.getElementById('lat1').value);
+    document.getElementById('lng1').value = getParam('lng1', document.getElementById('lng1').value);
+    document.getElementById('lat2').value = getParam('lat2', document.getElementById('lat2').value);
+    document.getElementById('lng2').value = getParam('lng2', document.getElementById('lng2').value);
+
+    function drawMapAndExport() {
+      // limpar marcadores anteriores
+      markerGroup.clearLayers();
+
+      const lat1 = parseFloat(document.getElementById('lat1').value);
+      const lng1 = parseFloat(document.getElementById('lng1').value);
+      const lat2 = parseFloat(document.getElementById('lat2').value);
+      const lng2 = parseFloat(document.getElementById('lng2').value);
+
+      // validação simples
+      const coords = [];
+      if (!isNaN(lat1) && !isNaN(lng1)) coords.push([lat1,lng1]);
+      if (!isNaN(lat2) && !isNaN(lng2)) coords.push([lat2,lng2]);
+
+      if (coords.length === 0) {
+        alert('Informe pelo menos uma coordenada válida.');
+        return;
+      }
+
+      // adicionar marcadores
+      coords.forEach((c, i) => {
+        L.marker(c).bindPopup(`Ponto ${i+1}`).addTo(markerGroup);
+      });
+
+      // ajustar o view para caber os marcadores
+      if (coords.length === 1) {
+        map.setView(coords[0], 14);
+      } else {
+        map.fitBounds(markerGroup.getBounds().pad(0.4));
+      }
+
+      // usar leaflet-image para converter em canvas → PNG
+      // (leaflet-image pode levar 200-800ms dependendo da tiles)
+      leafletImage(map, function(err, canvas) {
+        if (err) {
+          console.error(err);
+          alert('Erro ao converter o mapa em imagem: ' + err);
+          return;
+        }
+        // transformar canvas em dataURL PNG
+        const dataURL = canvas.toDataURL('image/png');
+        document.getElementById('mapimage').src = dataURL;
+
+        // opcional: link para baixar a imagem
+        // const a = document.createElement('a');
+        // a.href = dataURL; a.download = 'map.png'; a.textContent = 'Baixar PNG';
+        // document.body.appendChild(a);
+      });
+    }
+
+    // botão dispara geração
+    document.getElementById('draw').addEventListener('click', drawMapAndExport);
+
+    // desenha logo de primeira
+    drawMapAndExport();
+  </script>
+</body>
+</html>
